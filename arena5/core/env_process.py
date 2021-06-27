@@ -2,6 +2,7 @@
 import sys
 import numpy as np
 from arena5.core.utils import mpi_print
+from mpi4py import MPI
 
 class EnvironmentProcess():
 
@@ -14,7 +15,6 @@ class EnvironmentProcess():
 		else:
 			self.env = make_env_method(**env_kwargs)
 
-		mpi_print("made env")
 
 		self.global_comm = global_comm
 		self.local_comm = local_comm
@@ -33,6 +33,7 @@ class EnvironmentProcess():
 			#get all actions
 			actions = [[-1], [[0]]]
 			actions = self.local_comm.gather(actions, root=self.match_root_rank)
+			#mpi_print(36, 'action', actions)
 
 			#some entries may represent multiple entities- convert all to single entity
 			entity_actions = []
@@ -60,10 +61,12 @@ class EnvironmentProcess():
 			self.local_comm.bcast([new_states, rewards, done, infos], root=self.match_root_rank)
 
 			if done:
+                            
 				self.states = self.env.reset()
 
 				#proxies will call reset -> respond with states
 				self.local_comm.bcast(self.states, root=self.match_root_rank)
+				mpi_print(67, 'root reset', self.match_root_rank, self.local_comm.Get_rank(), done, stp)
 
 			else:
 				self.states = new_states

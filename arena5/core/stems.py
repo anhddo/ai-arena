@@ -11,7 +11,10 @@ from arena5.algos.sac.sac_policy import SACPolicy
 from arena5.algos.ddpg.ddpg_policy import DDPGPolicy
 from arena5.algos.maddpg.maddpg_policy import MADDPGPolicy
 from arena5.algos.masac.masac_policy import MASACPolicy
-#from arena5.algos.hppo.hppo import HPPOPolicy
+from arena5.algos.hppo.hppo import HPPOPolicy
+import spinup.algos.pytorch.ppo.core as core
+from spinup import ppo_pytorch
+import sys
 
 from arena5.core.policy_record import PolicyRecord, get_dir_for_policy
 
@@ -134,7 +137,7 @@ class WorkerStem(object):
 
 		#receive if we will be calling render() on environments
 		will_call_render = self.global_comm.bcast(None, root=0)
-		mpi_print("will render:", will_call_render)
+		#mpi_print("will render:", will_call_render)
 
 		#receive any policy kwargs
 		policy_kwargs = self.global_comm.bcast(None, root=0)
@@ -222,6 +225,8 @@ class WorkerStem(object):
 			#unused rank
 			my_pol = -2
 			my_match = -2
+		#rank = MPI.COMM_WORLD.Get_rank()
+		#mpi_print(158, 'global_rank', self.global_rank, 'polciy flat ', policies_flat, steps_per_match)
 
 		# create a local comm between members of a single match
 		excluded = []
@@ -229,8 +234,8 @@ class WorkerStem(object):
 			if match_num_flat[rank] != my_match:
 				excluded.append(rank)
 		for rank in unused_ranks:
-			excluded.append(rank)
-
+			excluded.append(rank) 
+		mpi_print(excluded)
 		if self.global_rank not in unused_ranks:
 			match_group_comm = self.global_comm.Create(self.global_comm.group.Excl(excluded))
 
@@ -251,12 +256,22 @@ class WorkerStem(object):
 			unused_group_comm = self.global_comm.Create(self.global_comm.group.Excl(unused_ranks))
 			unused_group_comm = self.global_comm.Create(self.global_comm.group.Excl(unused_ranks))
 
-		# now all procs in the match should have the root process rank
-
+		# now all procs in the match should have the root process rank 
+		mpi_print(260, self.global_comm.Get_size(), match_group_comm.Get_size())
+		mpi_print(261, root_proc)
+		#root_proc = 1
+		rank = MPI.COMM_WORLD.Get_rank()
+		#mpi_print(267, root_proc, proc_info, rank)
+		
+		policy_group_comm = match_group_comm.Create(match_group_comm.group.Excl([0]))
 		if my_pol == -1:
-			mpi_print("I am an environment")
+
+			rank = MPI.COMM_WORLD.Get_rank()
+			mpi_print("I am an environment, rank:", rank)
+			#set hard code for root_proc, need to check it carefully later
 			self.process = EnvironmentProcess(self.make_env_method, self.global_comm, match_group_comm, root_proc, will_call_render, env_kwargs=my_env_kwargs)
-			temp_pol_group_comm = self.global_comm.Create(self.global_comm.group.Excl([]))
+			#temp_pol_group_comm = self.global_comm.Create(self.global_comm.group.Excl([]))
+
 			self.process.proxy_sync()
 			self.process.run(steps_per_match)
 
@@ -277,8 +292,9 @@ class WorkerStem(object):
 			for rank in unused_ranks:
 				excluded.append(rank)
 
-			mpi_print("excluded ranks:", excluded)
-			policy_group_comm = self.global_comm.Create(self.global_comm.group.Excl(excluded))
+			mpi_print(294, "excluded ranks:", excluded)
+			#policy_group_comm = self.global_comm.Create(self.global_comm.group.Excl(excluded))
+			#policy_group_comm = match_group_comm.Create(match_group_comm.group.Excl([0]))
 
 			#calculate how many steps the policy needs to run for
 			#for now this is (number pol workers) * (steps in match)
@@ -302,31 +318,36 @@ class WorkerStem(object):
 				"ddpg":DDPGPolicy,
 				"maddpg":MADDPGPolicy
 			}
+			def create_env():
+			    return proxyenv
 
 			#add custom policies here
-			available_policies.update(self.additional_policies)
+			#available_policies.update(self.additional_policies)
+			steps_per_epoch = 500
+			ppo_pytorch(create_env, steps_per_epoch=steps_per_epoch, epochs=steps_per_match//steps_per_epoch,
+				comm=policy_group_comm, root=root_proc)
 
-			#make the policy
-			pol_type = policy_types[my_pol]
-			policy_maker = available_policies[pol_type]
-			if my_pol in policy_kwargs:
-				policy = policy_maker(proxyenv, policy_group_comm, **(policy_kwargs[my_pol]))
-			else:
-				policy = policy_maker(proxyenv, policy_group_comm)
+			##make the policy
+			#pol_type = policy_types[my_pol]
+			#policy_maker = available_policies[pol_type]
+			#if my_pol in policy_kwargs:
+			#	policy = policy_maker(proxyenv, policy_group_comm, **(policy_kwargs[my_pol]))
+			#else:
+			#	policy = policy_maker(proxyenv, policy_group_comm)
 
-			# compute full log comms directory for this policy
-			data_dir =  get_dir_for_policy(my_pol, self.log_comms_dir)
+			## compute full log comms directory for this policy
+			#data_dir =  get_dir_for_policy(my_pol, self.log_comms_dir) 
 
-			# create policy record for policy roots
-			if policy_group_comm.Get_rank() == 0:
-				if plot_colors:
-					pr = PolicyRecord(my_pol, self.log_comms_dir, plot_colors[my_pol])
-				else:
-					pr = PolicyRecord(my_pol, self.log_comms_dir)
-				pr.load()
-				policy.run(steps_to_run, data_dir, pr)
-			else:
-				policy.run(steps_to_run, data_dir)
+			## create policy record for policy roots
+			#if policy_group_comm.Get_rank() == 0:
+			#	if plot_colors:
+			#		pr = PolicyRecord(my_pol, self.log_comms_dir, plot_colors[my_pol])
+			#	else:
+			#		pr = PolicyRecord(my_pol, self.log_comms_dir)
+			#	pr.load()
+			#	policy.run(steps_to_run, data_dir, pr)
+			#else:
+				#policy.run(steps_to_run, data_dir)
 
 
 		else:

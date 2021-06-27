@@ -2,6 +2,7 @@
 # ©2020 Johns Hopkins University Applied Physics Laboratory LLC.
 import numpy as np
 from arena5.core.utils import mpi_print
+from mpi4py import MPI
 
 '''
 This file contains magic arena sauce.
@@ -37,6 +38,7 @@ class gym_proxy_env():
 
 	def reset(self):
 		states = self.comm.bcast(None, root=self.match_root_rank)
+		mpi_print(40, 'proxy reset ', self.match_root_rank, self.comm.Get_rank(), self.comm.Get_size())
 		state = states[self.entity_idx]
 		return state
 
