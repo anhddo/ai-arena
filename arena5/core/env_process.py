@@ -33,7 +33,6 @@ class EnvironmentProcess():
 			#get all actions
 			actions = [[-1], [[0]]]
 			actions = self.local_comm.gather(actions, root=self.match_root_rank)
-			#mpi_print(36, 'action', actions)
 
 			#some entries may represent multiple entities- convert all to single entity
 			entity_actions = []
@@ -66,13 +65,11 @@ class EnvironmentProcess():
 
 				#proxies will call reset -> respond with states
 				self.local_comm.bcast(self.states, root=self.match_root_rank)
-				mpi_print(67, 'root reset', self.match_root_rank, self.local_comm.Get_rank(), done, stp)
 
 			else:
 				self.states = new_states
 
 
-			#mpi_print("env", stp+1, "/", num_steps)
 
 		if hasattr(self.env, "close"):
 			self.env.close()

@@ -2,6 +2,8 @@
 import sys
 import time
 from mpi4py import MPI
+from inspect import currentframe, getframeinfo
+import inspect
 
 def mpi_lag(wait=2.0):
 	r = float(MPI.COMM_WORLD.Get_rank())
@@ -10,7 +12,8 @@ def mpi_lag(wait=2.0):
 	time.sleep(delay)
 
 def mpi_print(*args):
-    print(*args)
+    frameinfo = inspect.stack()[1]
+    print('file:', frameinfo[1], 'line:',  frameinfo[2],'==>', *args)
     sys.stdout.flush()
 
 def count_needed_procs(match_list):

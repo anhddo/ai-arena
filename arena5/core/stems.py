@@ -324,6 +324,7 @@ class WorkerStem(object):
 			#add custom policies here
 			#available_policies.update(self.additional_policies)
 			steps_per_epoch = 500
+			mpi_print(327, steps_per_epoch, steps_per_match)
 			ppo_pytorch(create_env, steps_per_epoch=steps_per_epoch, epochs=steps_per_match//steps_per_epoch,
 				comm=policy_group_comm, root=root_proc)
 
